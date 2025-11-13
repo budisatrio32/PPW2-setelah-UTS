@@ -15,11 +15,26 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Buat user admin
+        User::create([
+            'name' => 'Admin',
+            'email' => 'admin@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+        ]);
 
-        User::factory()->create([
+        // Buat user biasa untuk testing
+        User::create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'user',
+        ]);
+
+        // Jalankan seeder untuk jobs dan applications
+        $this->call([
+            JobVacancySeeder::class,
+            ApplicationSeeder::class,
         ]);
     }
 }

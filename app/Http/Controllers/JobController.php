@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobVacancy as Job;
+use App\Imports\JobsImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class JobController extends Controller
 {
@@ -35,7 +37,6 @@ class JobController extends Controller
             'description' => 'required',
             'location' => 'required',
             'company' => 'required',
-            'job_type' => 'required|in:Full-time,Part-time',
             'logo' => 'image|mimes:jpg,png,jpeg|max:2048'
         ]);
 
@@ -50,7 +51,6 @@ class JobController extends Controller
             'location' => $request->location,
             'company' => $request->company,
             'salary' => $request->salary,
-            'job_type' => $request->job_type,
             'logo' => $logoPath
         ]);
 
@@ -62,7 +62,8 @@ class JobController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $job = Job::findOrFail($id);
+        return view('jobs.show', compact('job'));
     }
 
     /**
@@ -84,7 +85,6 @@ class JobController extends Controller
             'description' => 'required',
             'location' => 'required',
             'company' => 'required',
-            'job_type' => 'required|in:Full-time,Part-time',
             'logo' => 'nullable|image|mimes:jpg,png,jpeg|max:2048'
         ]);
 
@@ -105,7 +105,6 @@ class JobController extends Controller
             'location' => $request->location,
             'company' => $request->company,
             'salary' => $request->salary,
-            'job_type' => $request->job_type,
             'logo' => $logoPath
         ]);
 
@@ -127,5 +126,73 @@ class JobController extends Controller
         $job->delete();
 
         return redirect()->route('jobs.index')->with('success', 'Lowongan berhasil didelete');
+    }
+
+    /**
+     * Import jobs from Excel file
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048'
+        ]);
+
+        try {
+            Excel::import(new JobsImport, $request->file('file'));
+            return redirect()->route('jobs.index')->with('success', 'Data lowongan berhasil diimport!');
+        } catch (\Exception $e) {
+            return redirect()->route('jobs.index')->with('error', 'Gagal import data: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download template import
+     */
+    public function downloadTemplate()
+    {
+        // Header untuk file CSV
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="template_import_lowongan.csv"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0'
+        ];
+
+        // Kolom yang diperlukan
+        $columns = ['title', 'description', 'location', 'company', 'salary'];
+
+        $callback = function() use ($columns) {
+            $file = fopen('php://output', 'w');
+
+            // Pastikan encoding UTF-8 dengan BOM untuk Excel
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // Tulis header kolom
+            fputcsv($file, $columns);
+
+            // Tulis contoh data (3 baris contoh)
+            $examples = [
+                ['Web Developer', 'Mengembangkan aplikasi web dengan Laravel', 'Jakarta', 'PT Digital', '7500000'],
+                ['Mobile Developer', 'Membuat aplikasi mobile Android/iOS', 'Bandung', 'CV Mobile Tech', '8500000'],
+                ['UI/UX Designer', 'Mendesain interface dan user experience', 'Surabaya', 'PT Design Studio', '7000000']
+            ];
+
+            foreach ($examples as $example) {
+                fputcsv($file, $example);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Show template guide page
+     */
+    public function showTemplate()
+    {
+        return view('jobs.template');
     }
 }
